@@ -7,7 +7,9 @@ from typing import Optional, Dict, Any
 
 
 class OneNoteAuth:
-    def __init__(self, token_path: Optional[str] = None, client_id: Optional[str] = None):
+    def __init__(
+        self, token_path: Optional[str] = None, client_id: Optional[str] = None
+    ):
         """
         Initialize auth handler for both local and container environments.
 
@@ -21,7 +23,9 @@ class OneNoteAuth:
                        2. Loads from .env file for local dev (if exists)
         """
         # Smart environment detection
-        self.is_container = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+        self.is_container = os.path.exists("/.dockerenv") or os.path.exists(
+            "/run/.containerenv"
+        )
 
         # Load client_id with fallback
         self.client_id = self._get_client_id(client_id)
@@ -34,7 +38,7 @@ class OneNoteAuth:
 
         self.app = msal.PublicClientApplication(
             self.client_id,
-            authority=f"https://login.microsoftonline.com/{self.tenant_id}"
+            authority=f"https://login.microsoftonline.com/{self.tenant_id}",
         )
         self.refresh_token = self._load_refresh_token()
 
@@ -53,6 +57,7 @@ class OneNoteAuth:
         if not self.is_container:
             try:
                 from dotenv import load_dotenv
+
                 load_dotenv()
                 env_client_id = os.getenv("MS_CLIENT_ID")
                 if env_client_id:
@@ -84,7 +89,7 @@ class OneNoteAuth:
         """Create token directory with secure permissions"""
         if not self.token_path.parent.exists():
             self.token_path.parent.mkdir(parents=True, exist_ok=True)
-            if os.name != 'nt':
+            if os.name != "nt":
                 os.chmod(self.token_path.parent, 0o700)
 
     def _load_refresh_token(self) -> Optional[str]:
@@ -103,7 +108,7 @@ class OneNoteAuth:
         try:
             self._ensure_token_dir()
             self.token_path.write_text(token)
-            if os.name != 'nt':
+            if os.name != "nt":
                 self.token_path.chmod(0o600)
             print(f"✓ Saved refresh token to {self.token_path}")
         except Exception as e:
@@ -115,8 +120,7 @@ class OneNoteAuth:
         if self.refresh_token:
             print("🔄 Attempting silent token refresh...")
             result = self.app.acquire_token_by_refresh_token(
-                self.refresh_token,
-                scopes=self.scope
+                self.refresh_token, scopes=self.scope
             )
             if "access_token" in result:
                 print("✓ Token refreshed silently")
@@ -124,7 +128,9 @@ class OneNoteAuth:
                     self._save_refresh_token(result["refresh_token"])
                 return result["access_token"]
             else:
-                print(f"⚠ Silent refresh failed: {result.get('error_description', 'Unknown error')}")
+                print(
+                    f"⚠ Silent refresh failed: {result.get('error_description', 'Unknown error')}"
+                )
                 print("   Falling back to device code flow...")
 
         # Device code flow
@@ -147,7 +153,9 @@ class OneNoteAuth:
                 self._save_refresh_token(result["refresh_token"])
             return result["access_token"]
         else:
-            error = result.get('error_description', result.get('error', 'Unknown error'))
+            error = result.get(
+                "error_description", result.get("error", "Unknown error")
+            )
             raise Exception(f"Authentication failed: {error}")
 
     def get_notebooks(self, access_token: Optional[str] = None) -> Dict[str, Any]:
@@ -155,7 +163,7 @@ class OneNoteAuth:
         token = access_token or self.get_access_token()
         resp = requests.get(
             "https://graph.microsoft.com/v1.0/me/onenote/notebooks",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         resp.raise_for_status()
         return resp.json()
@@ -166,18 +174,17 @@ def main():
     """CLI entry point - works everywhere with the same code"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='OneNote Authentication')
-    parser.add_argument('--client-id', help='Microsoft Client ID (optional, uses MS_CLIENT_ID env var)')
-    parser.add_argument('--token-path', help='Custom path for refresh token storage')
+    parser = argparse.ArgumentParser(description="OneNote Authentication")
+    parser.add_argument(
+        "--client-id", help="Microsoft Client ID (optional, uses MS_CLIENT_ID env var)"
+    )
+    parser.add_argument("--token-path", help="Custom path for refresh token storage")
 
     # No API flag - always test
     args = parser.parse_args()
 
     try:
-        auth = OneNoteAuth(
-            token_path=args.token_path,
-            client_id=args.client_id
-        )
+        auth = OneNoteAuth(token_path=args.token_path, client_id=args.client_id)
 
         token = auth.get_access_token()
 
@@ -191,7 +198,7 @@ def main():
         # Always test API
         print("🔍 Testing OneNote API call...")
         notebooks_data = auth.get_notebooks(token)
-        notebooks = notebooks_data.get('value', [])
+        notebooks = notebooks_data.get("value", [])
         print(f"✅ Successfully retrieved {len(notebooks)} notebook(s):\n")
         for nb in notebooks:
             print(f"  • {nb['displayName']} (ID: {nb['id']})")
