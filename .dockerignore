@@ -1,0 +1,10 @@
+# .dockerignore - Exclude EVERYTHING except explicitly allowed files
+
+# First, exclude everything with *
+*
+
+# Then, explicitly include only the files we want
+!/auth.py
+!/requirements.txt
+!/Dockerfile
+

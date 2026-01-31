@@ -1,0 +1,34 @@
+
+services:
+  onenote-rag:
+    build: .
+    container_name: onenote_rag
+    restart: unless-stopped
+    environment:
+      - MS_CLIENT_ID=${MS_CLIENT_ID}
+    command: sh -c "python auth.py && sleep 60"
+    volumes:
+      # Single mount - everything works automatically
+      - ~/.onenote_rag:/home/appuser/.onenote_rag:rw
+
+
+#version: '3.8'
+#
+#services:
+#  onenote-rag:
+#    build: .
+#    container_name: onenote-rag
+#    restart: unless-stopped
+#    environment:
+#      - MS_CLIENT_ID=${MS_CLIENT_ID}
+#    volumes:
+#      # Mount for persistent refresh token (Docker secrets)
+#      - onenote_token:/run/secrets
+#      # Or for local development:
+#      # - ./token_data:/run/secrets
+#    # For headless operation, you might want to run a specific script
+#    # command: python your_main_application.py
+#
+#volumes:
+#  onenote_token:
+#    driver: local
