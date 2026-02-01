@@ -12,50 +12,82 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install types-requests pytest black flake8 mypy 
-    
-    - name: Lint with flake8
-      run: |
-        flake8 auth.py --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 auth.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Check formatting with black
-      run: |
-        black --check auth.py
-    
-    - name: Type check with mypy
-      run: |
-        mypy --ignore-missing-imports auth.py
-    
-    - name: Test with pytest
-      run: |
-        python -m pytest test_auth.py -v
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install types-requests pytest black flake8 mypy
+
+      - name: Lint with flake8
+        run: |
+          flake8 auth.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 auth.py --count --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Check formatting with black
+        run: black --check auth.py
+
+      - name: Type check with mypy
+        run: mypy --ignore-missing-imports auth.py
+
+      - name: Test with pytest
+        run: python -m pytest test_auth.py -v
 
   docker:
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # Required for GHCR push
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Build Docker image
-      run: |
-        docker build -t onenote-rag .
-    
-    - name: Test Docker image
-      run: |
-        docker run --rm onenote-rag python --version
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/alexbgoode/onenote-rag
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=
+
+      - name: Build and test Docker image
+        run: |
+          # Build with explicit Dockerfile path
+          docker build -t onenote-rag:local --file Dockerfile .
+          
+          # Test the locally built image
+          docker run --rm onenote-rag:local python --version
+
+      - name: Push to GHCR (main branch only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          IMAGE=ghcr.io/alexbgoode/onenote-rag
+          
+          # Tag with metadata from previous step
+          docker tag onenote-rag:local $IMAGE:latest
+          docker tag onenote-rag:local $IMAGE:${{ github.sha }}
+          
+          # Push both tags
+          docker push $IMAGE:latest
+          docker push $IMAGE:${{ github.sha }}
+          
